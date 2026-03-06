@@ -379,9 +379,9 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true", help="静默模式，仅输出关键结果")
     args = parser.parse_args()
 
-    # 路径配置
-    if os.path.exists("/Users/alanwanco/Workspace/code-repository/local_settings"):
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 路径配置：兼容打包后的可执行文件路径
+    if getattr(sys, "frozen", False):
+        BASE_DIR = os.path.dirname(sys.executable)
     else:
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
