@@ -1,0 +1,46 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: bili-live-tool-linux-amd64
+          - os: windows-latest
+            artifact_name: bili-live-tool-win-amd64.exe
+          - os: macos-latest
+            artifact_name: bili-live-tool-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+          
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --name ${{ matrix.artifact_name }} bili_live_tool.py
+          
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
