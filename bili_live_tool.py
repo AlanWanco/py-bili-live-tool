@@ -8,7 +8,16 @@ import hashlib
 import urllib.parse
 import sys
 import io
+import warnings
 from datetime import datetime
+
+# 屏蔽 requests 的字符检测依赖警告，确保 JSON 输出纯净
+try:
+    from urllib3.exceptions import DependencyWarning
+
+    warnings.filterwarnings("ignore", category=DependencyWarning)
+except:
+    pass
 
 # 配置日志格式
 logging.basicConfig(
