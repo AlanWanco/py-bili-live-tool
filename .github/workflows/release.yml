@@ -12,14 +12,18 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm64, windows-latest, macos-latest, macos-13]
         include:
           - os: ubuntu-latest
             artifact_name: bili-live-tool-linux-amd64
+          - os: ubuntu-24.04-arm64
+            artifact_name: bili-live-tool-linux-arm64
           - os: windows-latest
             artifact_name: bili-live-tool-win-amd64.exe
           - os: macos-latest
             artifact_name: bili-live-tool-macos-arm64
+          - os: macos-13
+            artifact_name: bili-live-tool-macos-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
