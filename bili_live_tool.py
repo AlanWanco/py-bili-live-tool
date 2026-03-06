@@ -18,6 +18,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("BiliLive")
 
+__version__ = "0.1.0"
+
 # B站移动端 AppKey 映射 (移植自 biliup-rs)
 PLATFORM_KEYS = {
     "Android": ("783bbb7264451d82", "2653583c8873dea268ab9386918b1d65"),

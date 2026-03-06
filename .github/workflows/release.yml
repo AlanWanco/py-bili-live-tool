@@ -11,19 +11,25 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm64, windows-latest, macos-latest, macos-13]
         include:
-          - os: ubuntu-latest
-            artifact_name: bili-live-tool-linux-amd64
+          - os: ubuntu-22.04
+            platform: linux-amd64
+            suffix: ""
           - os: ubuntu-24.04-arm64
-            artifact_name: bili-live-tool-linux-arm64
+            platform: linux-arm64
+            suffix: ""
           - os: windows-latest
-            artifact_name: bili-live-tool-win-amd64.exe
+            platform: win-amd64
+            suffix: ".exe"
           - os: macos-latest
-            artifact_name: bili-live-tool-macos-arm64
+            platform: macos-arm64
+            suffix: ""
           - os: macos-13
-            artifact_name: bili-live-tool-macos-x64
+            platform: macos-x64
+            suffix: ""
+            
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -40,11 +46,23 @@ jobs:
           
       - name: Build with PyInstaller
         run: |
-          pyinstaller --onefile --name ${{ matrix.artifact_name }} bili_live_tool.py
+          pyinstaller --onefile --name "bili-live-tool" bili_live_tool.py
+          
+      - name: Package Release Asset (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path "dist/bili-live-tool.exe", "bili_config.yaml", "bili_cookie.json", "bili_areas.json", "README.md" -DestinationPath "bili-live-tool-${{ matrix.platform }}.zip"
+          
+      - name: Package Release Asset (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          # 给予执行权限
+          chmod +x dist/bili-live-tool
+          zip -j "bili-live-tool-${{ matrix.platform }}.zip" dist/bili-live-tool bili_config.yaml bili_cookie.json bili_areas.json README.md
           
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/${{ matrix.artifact_name }}
+          files: bili-live-tool-${{ matrix.platform }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
