@@ -326,6 +326,16 @@ class BiliLiveTool:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Bilibili 直播辅助工具")
+    parser.add_argument("--room-id", help="直播间号 (覆盖配置)")
+    parser.add_argument("--area-id", help="分区 ID (覆盖配置)")
+    parser.add_argument("--title", help="直播标题 (覆盖配置)")
+    parser.add_argument("-y", "--yes", action="store_true", help="跳过确认直接开播")
+    args = parser.parse_args()
+
+    # 动态获取脚本所在目录，确保分发后路径自适应
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     COOKIE_PATH = os.path.join(BASE_DIR, "bili_cookie.json")
     CONFIG_PATH = os.path.join(BASE_DIR, "bili_config.yaml")
@@ -335,13 +345,20 @@ if __name__ == "__main__":
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
-        room_id = config.get("room_id")
-        area_id = config.get("area_id")
-        title = config.get("title")
+        # 优先级：命令行参数 > 配置文件
+        room_id = args.room_id or config.get("room_id")
+        area_id = args.area_id or config.get("area_id")
+        title = args.title or config.get("title")
 
-        print(f"\n--- 开播确认 ---\n标题: {title}\n分区: {area_id}")
-        if input("\n确认开播？[Y/n]: ").lower() in ["", "y", "yes"]:
-            tool.run_live(room_id, area_id, title)
+        if not args.yes:
+            print(
+                f"\n--- 开播确认 ---\n房间: {room_id}\n标题: {title}\n分区: {area_id}"
+            )
+            if input("\n确认开播？[Y/n]: ").lower() not in ["", "y", "yes"]:
+                print("已取消。")
+                exit()
+
+        tool.run_live(room_id, area_id, title)
     except KeyboardInterrupt:
         logger.info("程序已手动终止")
     except Exception as e:
