@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,19 +17,14 @@ jobs:
         include:
           - os: ubuntu-22.04
             platform: linux-amd64
-            suffix: ""
           - os: ubuntu-24.04-arm64
             platform: linux-arm64
-            suffix: ""
           - os: windows-latest
             platform: win-amd64
-            suffix: ".exe"
           - os: macos-latest
             platform: macos-arm64
-            suffix: ""
           - os: macos-13
             platform: macos-x64
-            suffix: ""
             
     runs-on: ${{ matrix.os }}
     steps:
@@ -64,5 +60,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: bili-live-tool-${{ matrix.platform }}.zip
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest-manual-build' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Latest Manual Build' }}
+          allowUpdates: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
