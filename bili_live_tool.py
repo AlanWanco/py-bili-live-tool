@@ -6,6 +6,8 @@ import yaml
 import logging
 import hashlib
 import urllib.parse
+import sys
+import io
 from datetime import datetime
 
 # 配置日志格式
@@ -24,14 +26,38 @@ PLATFORM_KEYS = {
 
 
 class BiliLiveTool:
-    def __init__(self, cookie_file_path):
+    def __init__(self, cookie_file_path, is_json=False, quiet=False):
         self.cookie_file_path = cookie_file_path
+        self.is_json = is_json
+        self.quiet = quiet
         self.session = requests.Session()
         self.raw_data = {}  # 存储完整的登录信息
         self.cookies = {}
         self.token_info = {}
         self.csrf = ""
         self.load_cookies()
+
+        if self.quiet:
+            logger.setLevel(logging.WARNING)
+
+    def _emit(self, status, message=None, **kwargs):
+        """统一输出函数，支持纯文本和 JSON"""
+        if self.is_json:
+            out = {"status": status}
+            if message:
+                out["message"] = message
+            out.update(kwargs)
+            # 确保 JSON 输出是单行且不带前缀，方便主工具捕获
+            print(json.dumps(out, ensure_ascii=False), flush=True)
+        else:
+            if status == "error":
+                logger.error(message)
+            elif status == "success":
+                logger.info(f"🚀 {message}")
+            elif status == "face_auth":
+                logger.warning(message)
+            elif not self.quiet:
+                logger.info(message)
 
     def _sign(self, params, app_sec):
         """B站 API 签名算法"""
@@ -49,14 +75,12 @@ class BiliLiveTool:
         with open(self.cookie_file_path, "r", encoding="utf-8") as f:
             try:
                 self.raw_data = json.load(f)
-                # 兼容 biliup 格式
                 if "cookie_info" in self.raw_data:
                     for item in self.raw_data["cookie_info"].get("cookies", []):
                         self.cookies[item["name"]] = item["value"]
                 if "token_info" in self.raw_data:
                     self.token_info = self.raw_data["token_info"]
             except json.JSONDecodeError:
-                # 兼容旧的扁平格式
                 f.seek(0)
                 content = f.read()
                 for item in content.strip().split("; "):
@@ -77,20 +101,17 @@ class BiliLiveTool:
         """将更新后的凭据保存回文件"""
         with open(self.cookie_file_path, "w", encoding="utf-8") as f:
             json.dump(self.raw_data, f, indent=2, ensure_ascii=False)
-        logger.info("已更新本地 Cookie 文件")
+        if not self.quiet:
+            logger.info("已更新本地 Cookie 文件")
 
     def check_and_refresh(self):
         """检查并自动刷新 Token (移植自 biliup-rs)"""
         if not self.token_info.get("access_token"):
-            logger.warning("未发现 access_token，无法执行自动续期。")
             return
 
-        # 0. 自动识别平台密钥
         platform = self.raw_data.get("platform", "Android")
         app_key, app_sec = PLATFORM_KEYS.get(platform, PLATFORM_KEYS["Android"])
-        logger.info(f"[*] 正在检查凭据状态 (平台: {platform})...")
 
-        # 1. 检查是否需要刷新
         params = {
             "access_key": self.token_info["access_token"],
             "appkey": app_key,
@@ -105,14 +126,12 @@ class BiliLiveTool:
                 timeout=10,
             )
             if response.status_code != 200:
-                logger.debug(f"检查状态失败，HTTP状态码: {response.status_code}")
                 return
 
             res = response.json()
             if res.get("code") == 0 and res["data"].get("refresh"):
-                logger.info("[*] 检测到凭据需要续期，正在尝试自动刷新...")
+                self._emit("info", "[*] 检测到凭据需要续期，正在尝试自动刷新...")
 
-                # 2. 执行刷新
                 refresh_params = {
                     "access_key": self.token_info["access_token"],
                     "refresh_token": self.token_info["refresh_token"],
@@ -127,34 +146,24 @@ class BiliLiveTool:
                     timeout=15,
                 )
 
-                if refresh_response.status_code != 200:
-                    logger.error(
-                        f"❌ 续期请求失败，HTTP状态码: {refresh_response.status_code}"
-                    )
-                    return
+                if refresh_response.status_code == 200:
+                    refresh_res = refresh_response.json()
+                    if refresh_res.get("code") == 0:
+                        new_data = refresh_res["data"]
+                        if "cookie_info" in new_data:
+                            self.raw_data["cookie_info"] = new_data["cookie_info"]
+                            for item in new_data["cookie_info"].get("cookies", []):
+                                self.cookies[item["name"]] = item["value"]
+                        if "token_info" in new_data:
+                            self.raw_data["token_info"] = new_data["token_info"]
+                            self.token_info = new_data["token_info"]
 
-                refresh_res = refresh_response.json()
-                if refresh_res.get("code") == 0:
-                    new_data = refresh_res["data"]
-                    # 更新内存中的数据
-                    if "cookie_info" in new_data:
-                        self.raw_data["cookie_info"] = new_data["cookie_info"]
-                        for item in new_data["cookie_info"].get("cookies", []):
-                            self.cookies[item["name"]] = item["value"]
-                    if "token_info" in new_data:
-                        self.raw_data["token_info"] = new_data["token_info"]
-                        self.token_info = new_data["token_info"]
-
-                    self.session.cookies.update(self.cookies)
-                    self.csrf = self.cookies.get("bili_jct", "")
-                    self.save_cookies()
-                    logger.info("✅ 凭据续期成功！")
-                else:
-                    logger.error(f"❌ 续期请求失败: {refresh_res.get('message')}")
-            else:
-                logger.info("凭据状态良好，无需续期。")
+                        self.session.cookies.update(self.cookies)
+                        self.csrf = self.cookies.get("bili_jct", "")
+                        self.save_cookies()
+                        self._emit("info", "✅ 凭据续期成功！")
         except Exception as e:
-            logger.error(f"续期过程发生异常: {e}")
+            self._emit("error", f"续期过程发生异常: {e}")
 
     def check_login(self):
         """验证当前 Cookie 是否有效"""
@@ -164,20 +173,17 @@ class BiliLiveTool:
             if res["code"] == 0:
                 data = res.get("data", {})
                 if data.get("isLogin"):
-                    logger.info(
-                        f"✅ 登录成功: {data.get('uname')} (MID: {data.get('mid')})"
-                    )
+                    if not self.quiet:
+                        logger.info(
+                            f"✅ 登录成功: {data.get('uname')} (MID: {data.get('mid')})"
+                        )
                     return True
-            logger.error(f"❌ Cookie 已过期或无效: {res.get('message', '未登录')}")
+            self._emit(
+                "error", f"❌ Cookie 已过期或无效: {res.get('message', '未登录')}"
+            )
         except Exception as e:
-            logger.error(f"检查登录状态时发生网络异常: {e}")
+            self._emit("error", f"检查登录状态时发生网络异常: {e}")
         return False
-
-    def get_area_list(self):
-        """获取直播分区列表"""
-        url = "https://api.live.bilibili.com/room/v1/Area/getList?show_pinyin=1"
-        res = self.session.get(url).json()
-        return res.get("data", [])
 
     def start_live(self, room_id, area_id):
         """开始直播并获取推流码"""
@@ -224,8 +230,8 @@ class BiliLiveTool:
             res = self.session.post(url, data=data).json()
             if res["code"] == 0:
                 return res["data"].get("is_identified", False)
-        except Exception as e:
-            logger.debug(f"检查验证状态出错: {e}")
+        except:
+            pass
         return False
 
     def stop_live(self, room_id):
@@ -255,11 +261,10 @@ class BiliLiveTool:
             pass
         return -1
 
-    def run_live(self, room_id, area_id, title):
+    def run_live(self, room_id, area_id, title, no_heartbeat=False, continuous=False):
         # 0. 验证登录 & 检查续期
         self.check_and_refresh()
         if not self.check_login():
-            logger.error("请重新扫码登录并更新 bili_cookie.json")
             return
 
         # 1. 更新房间信息
@@ -270,58 +275,87 @@ class BiliLiveTool:
             live_res = self.start_live(room_id, area_id)
 
             if live_res["status"] == "success":
-                start_time = datetime.now()
-                last_refresh_check = time.time()
-                logger.info("🚀 开播成功！")
-                print(
-                    f"\n推流地址: {live_res['rtmp_addr']}\n推流码: {live_res['rtmp_code']}\n"
+                # 输出结果
+                self._emit(
+                    "success",
+                    "开播成功！",
+                    rtmp_addr=live_res["rtmp_addr"],
+                    rtmp_code=live_res["rtmp_code"],
+                    room_id=room_id,
                 )
 
+                if not self.is_json:
+                    print(
+                        f"\n推流地址: {live_res['rtmp_addr']}\n推流码: {live_res['rtmp_code']}\n"
+                    )
+
+                if no_heartbeat:
+                    time.sleep(0.5)  # 给主工具留点解析时间
+                    return
+
+                start_time = datetime.now()
+                last_refresh_check = time.time()
                 try:
                     while True:
                         time.sleep(30)
                         status = self.get_live_status(room_id)
+                        duration = str(datetime.now() - start_time).split(".")[0]
 
-                        # 每4小时检查一次续期
+                        # 续期检查
                         if time.time() - last_refresh_check > 14400:
                             self.check_and_refresh()
                             last_refresh_check = time.time()
 
                         if status == 1:
-                            duration = datetime.now() - start_time
-                            logger.info(
-                                f"心跳正常 - 已直播: {str(duration).split('.')[0]}"
-                            )
+                            if continuous or not self.is_json:
+                                self._emit(
+                                    "heartbeat",
+                                    f"心跳正常 - 已直播: {duration}",
+                                    duration=duration,
+                                )
                         elif status == 0:
-                            logger.error("⚠️ 直播已断开")
+                            self._emit("error", "⚠️ 直播已断开")
                             break
                     break
                 except KeyboardInterrupt:
                     self.stop_live(room_id)
-                    logger.info("✅ 已下播")
+                    self._emit("info", "✅ 已下播")
                     break
+
             elif live_res["status"] == "face_auth":
                 auth_url = live_res["url"]
-                logger.warning("需要人脸验证，请扫码:")
+                qr_ascii = ""
                 try:
                     import qrcode
 
                     qr = qrcode.QRCode()
                     qr.add_data(auth_url)
-                    qr.print_ascii(invert=True)
+                    f = io.StringIO()
+                    qr.print_ascii(out=f, invert=True)
+                    qr_ascii = f.getvalue()
                 except:
+                    pass
+
+                # 输出验证信息
+                self._emit("face_auth", "需要人脸验证", url=auth_url, qr_ascii=qr_ascii)
+                if not self.is_json and qr_ascii:
+                    print(qr_ascii)
+                elif not self.is_json:
                     print(f"验证链接: {auth_url}")
 
+                # 快速轮询验证状态 (2s 间隔)
                 verified = False
-                for _ in range(60):
+                for _ in range(300):  # 10分钟
                     if self.check_face_auth_status(room_id):
+                        self._emit("info", "✅ 人脸验证成功！")
                         verified = True
                         break
-                    time.sleep(10)
+                    time.sleep(2)
                 if not verified:
+                    self._emit("error", "人脸验证超时")
                     break
             else:
-                logger.error(f"开播失败: {live_res['message']}")
+                self._emit("error", f"开播失败: {live_res['message']}")
                 break
 
 
@@ -333,24 +367,35 @@ if __name__ == "__main__":
     parser.add_argument("--area-id", help="分区 ID (覆盖配置)")
     parser.add_argument("--title", help="直播标题 (覆盖配置)")
     parser.add_argument("-y", "--yes", action="store_true", help="跳过确认直接开播")
+    parser.add_argument("--json", action="store_true", help="启用 JSON 输出模式")
+    parser.add_argument(
+        "--no-heartbeat", action="store_true", help="获取推流码后立即退出"
+    )
+    parser.add_argument(
+        "--continuous", action="store_true", help="JSON模式下持续输出心跳"
+    )
+    parser.add_argument("--quiet", action="store_true", help="静默模式，仅输出关键结果")
     args = parser.parse_args()
 
-    # 动态获取脚本所在目录，确保分发后路径自适应
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 路径配置
+    if os.path.exists("/Users/alanwanco/Workspace/code-repository/local_settings"):
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    else:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
     COOKIE_PATH = os.path.join(BASE_DIR, "bili_cookie.json")
     CONFIG_PATH = os.path.join(BASE_DIR, "bili_config.yaml")
 
     try:
-        tool = BiliLiveTool(COOKIE_PATH)
+        tool = BiliLiveTool(COOKIE_PATH, is_json=args.json, quiet=args.quiet)
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
-        # 优先级：命令行参数 > 配置文件
         room_id = args.room_id or config.get("room_id")
         area_id = args.area_id or config.get("area_id")
         title = args.title or config.get("title")
 
-        if not args.yes:
+        if not args.yes and not args.json:
             print(
                 f"\n--- 开播确认 ---\n房间: {room_id}\n标题: {title}\n分区: {area_id}"
             )
@@ -358,8 +403,17 @@ if __name__ == "__main__":
                 print("已取消。")
                 exit()
 
-        tool.run_live(room_id, area_id, title)
+        tool.run_live(
+            room_id,
+            area_id,
+            title,
+            no_heartbeat=args.no_heartbeat,
+            continuous=args.continuous,
+        )
     except KeyboardInterrupt:
-        logger.info("程序已手动终止")
+        pass
     except Exception as e:
-        logger.exception(f"运行异常: {e}")
+        if args.json:
+            print(json.dumps({"status": "error", "message": str(e)}))
+        else:
+            logger.exception(f"运行异常: {e}")
