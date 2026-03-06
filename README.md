@@ -51,6 +51,46 @@ python bili_live_tool.py --yes --json --no-heartbeat
 - `--continuous`: 在 JSON 模式下依然保持每 30 秒输出一次状态监控 JSON。
 - `--quiet`: 彻底静默非关键日志，只保留结果输出。
 
+### 📊 JSON 输出规范
+
+当启用 `--json` 参数时，脚本的所有输出均为单行标准 JSON 字符串，方便程序捕获解析。
+
+#### 1. 开播成功
+```json
+{
+  "status": "success",
+  "rtmp_addr": "rtmp://...",
+  "rtmp_code": "...",
+  "room_id": 123456
+}
+```
+
+#### 2. 需要人脸验证
+```json
+{
+  "status": "face_auth",
+  "url": "https://passport.bilibili.com/...",
+  "qr_ascii": "..." 
+}
+```
+> `qr_ascii` 包含了二维码的字符画，联动工具捕获后可直接在自己的终端打印。
+
+#### 3. 直播心跳状态 (需开启 --continuous)
+```json
+{
+  "status": "heartbeat",
+  "duration": "00:05:30"
+}
+```
+
+#### 4. 错误信息
+```json
+{
+  "status": "error",
+  "message": "错误原因说明"
+}
+```
+
 ## 💡 功能提示
 - **永久保活 (核心增强)**：本工具集成了 OAuth2 凭据续期机制。只要按照“准备 Cookie”步骤使用 `biliup` 生成的凭据，脚本将在凭据过期前自动执行静默续期并回写文件，实现“一次登录，长效有效”。支持 Android/BiliTV 双平台自适应。
 - **极速反馈**：人脸验证状态轮询间隔已优化至 **2秒**，扫码后主工具能近乎实时地感知验证成功。
