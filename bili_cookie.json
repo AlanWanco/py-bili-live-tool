@@ -1,0 +1,74 @@
+{
+  "cookie_info": {
+    "cookies": [
+      {
+        "name": "SESSDATA",
+        "value": "",
+        "http_only": 1,
+        "expires": 0,
+        "secure": 0,
+        "same_site": 0
+      },
+      {
+        "name": "bili_jct",
+        "value": "",
+        "http_only": 0,
+        "expires": 0,
+        "secure": 0,
+        "same_site": 0
+      },
+      {
+        "name": "DedeUserID",
+        "value": "",
+        "http_only": 0,
+        "expires": 0,
+        "secure": 0,
+        "same_site": 0
+      },
+      {
+        "name": "DedeUserID__ckMd5",
+        "value": "",
+        "http_only": 0,
+        "expires": 0,
+        "secure": 0,
+        "same_site": 0
+      },
+      {
+        "name": "sid",
+        "value": "",
+        "http_only": 0,
+        "expires": 0,
+        "secure": 0,
+        "same_site": 0
+      },
+      {
+        "name": "sec_ck",
+        "value": "",
+        "http_only": 1,
+        "expires": 0,
+        "secure": 1,
+        "same_site": 0
+      }
+    ],
+    "domains": [
+      ".bilibili.com",
+      ".biligame.com",
+      ".bilibili.cn",
+      ".huasheng.cn"
+    ]
+  },
+  "sso": [
+    "https://passport.bilibili.com/api/v2/sso",
+    "https://passport.biligame.com/api/v2/sso",
+    "https://passport.bilibili.cn/api/v2/sso"
+  ],
+  "token_info": {
+    "mid": 0,
+    "access_token": "",
+    "refresh_token": "",
+    "expires_in": 0,
+    "region": "CN",
+    "store_region": "CN"
+  },
+  "platform": "BiliTV"
+}
