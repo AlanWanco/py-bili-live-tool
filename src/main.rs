@@ -44,9 +44,50 @@ struct Args {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
+    #[serde(deserialize_with = "deserialize_number_or_string")]
     room_id: Option<u64>,
+    #[serde(deserialize_with = "deserialize_number_or_string")]
     area_id: Option<u64>,
     title: Option<String>,
+}
+
+fn deserialize_number_or_string<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct NumberOrStringVisitor;
+
+    impl<'de> Visitor<'de> for NumberOrStringVisitor {
+        type Value = Option<u64>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a number or a string representing a number")
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+            Ok(Some(value))
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+            Ok(Some(value as u64))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            value.parse::<u64>().map(Some).map_err(de::Error::custom)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(NumberOrStringVisitor)
 }
 
 struct BiliLiveTool {
