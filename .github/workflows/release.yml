@@ -17,19 +17,15 @@ jobs:
         include:
           - os: ubuntu-22.04
             platform: linux-amd64
-            target: x86_64-unknown-linux-gnu
+            # 使用原生构建，自动识别target
           - os: ubuntu-24.04-arm64
             platform: linux-arm64
-            target: aarch64-unknown-linux-gnu
           - os: windows-latest
             platform: win-amd64
-            target: x86_64-pc-windows-msvc
-          - os: macos-latest
+          - os: macos-14 # Apple Silicon (ARM64)
             platform: macos-arm64
-            target: aarch64-apple-darwin
-          - os: macos-13
+          - os: macos-13 # Intel (x86_64)
             platform: macos-x64
-            target: x86_64-apple-darwin
             
     runs-on: ${{ matrix.os }}
     steps:
@@ -37,22 +33,26 @@ jobs:
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
           
       - name: Build with Cargo
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release
+          
+      - name: Debug File Path
+        shell: bash
+        run: |
+          echo "Listing binary directory:"
+          ls -la target/release/
           
       - name: Package Release Asset (Windows)
         if: runner.os == 'Windows'
         run: |
-          Compress-Archive -Path "target/${{ matrix.target }}/release/bili-live-tool.exe", "bili_config.yaml", "bili_cookie.json", "bili_areas.json", "README.md" -DestinationPath "bili-live-tool-${{ matrix.platform }}.zip"
+          Compress-Archive -Path "target/release/bili-live-tool.exe", "bili_config.yaml", "bili_cookie.json", "bili_areas.json", "README.md" -DestinationPath "bili-live-tool-${{ matrix.platform }}.zip"
           
       - name: Package Release Asset (Unix)
         if: runner.os != 'Windows'
         run: |
-          chmod +x target/${{ matrix.target }}/release/bili-live-tool
-          zip -j "bili-live-tool-${{ matrix.platform }}.zip" target/${{ matrix.target }}/release/bili-live-tool bili_config.yaml bili_cookie.json bili_areas.json README.md
+          chmod +x target/release/bili-live-tool
+          zip -j "bili-live-tool-${{ matrix.platform }}.zip" target/release/bili-live-tool bili_config.yaml bili_cookie.json bili_areas.json README.md
           
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
