@@ -3,7 +3,7 @@
 这是一个简单的 B 站直播间管理与开播工具，支持更新标题、分区以及人脸验证自动弹码。
 
 ## 📂 文件构成
-- `bili_live_tool.py`: 核心执行脚本。
+- `bili-live-tool` (可执行文件): 核心执行程序。
 - `bili_config.yaml`: 存放房间号、分区及标题。
 - `bili_cookie.json`: 存放登录凭证（请勿泄露给他人）。
 - `bili_areas.json`: 分区信息对照表。
@@ -24,15 +24,10 @@
 - `area_id`: 填入分区 ID（可在 `bili_areas.json` 查看，如 33 为单机游戏）。
 - `title`: 填入你想设置的直播标题。
 
-### 3. 安装环境
-确保已安装 Python，然后运行：
+### 3. 运行工具
+双击可执行文件，或通过命令行运行：
 ```bash
-pip install -r requirements.txt
-```
-
-### 4. 运行工具
-```bash
-python bili_live_tool.py
+./bili-live-tool
 ```
 
 ## 🛠️ 高级用法 (自动化联动)
@@ -41,7 +36,7 @@ python bili_live_tool.py
 
 ```bash
 # 获取 RTMP 信息后立即以 JSON 格式输出并退出
-python bili_live_tool.py --yes --json --no-heartbeat
+./bili-live-tool --yes --json --no-heartbeat
 ```
 
 **自动化专用参数：**
